@@ -1,0 +1,55 @@
+#include<opencv2/opencv.hpp>
+
+using namespace cv;
+
+Mat frame;
+
+void displayFPS()
+{
+    double fps  = 0;
+    static char string[10];  // 用于存放帧率的字符串
+    static double t = 0;
+    static char a = 0;
+    a++;
+    t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+    printf("t:%f\n", t);
+    fps = 1.0 / t;
+    t = (double)cv::getTickCount();
+
+    if(a%10==0)
+        sprintf(string, "%.2f", fps);      // 帧率保留两位小数
+    // 将帧率信息写在输出帧上
+    std::string fpsString("FPS:");
+    fpsString += string;                    // 在"FPS:"后加入帧率数值字符串
+    cv::putText(frame, // 图像矩阵
+                fpsString,                  // string型文字内容
+                cv::Point(5, 20),           // 文字坐标，以左下角为原点
+                cv::FONT_HERSHEY_SIMPLEX,   // 字体类型
+                1, // 字体大小
+                cv::Scalar(0,0 , 255));       // 字体颜色
+}
+
+int main()
+{
+    VideoCapture cap;
+    cap.open(0);
+    if(!cap.isOpened())
+        return 0;
+    cv::namedWindow("Camera FPS");
+    while(1)
+    {
+        cap>>frame;//等价于cap.read(frame);
+        cvtColor(frame, frame, CV_BGR2GRAY);
+        blur(frame, frame, Size(3,3));
+        //        Canny(frame, frame, 30, 60, 3);
+        if(frame.empty())
+        break;
+        displayFPS();
+        imshow("Camera FPS", frame);
+        if(waitKey(10)>0)//按下任意键退出摄像头　　因电脑环境而异，有的电脑可能会出现一闪而过的情况
+            break;
+    }
+    cap.release();
+    destroyAllWindows();//关闭所有窗口
+    return 0;
+}
