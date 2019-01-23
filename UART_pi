@@ -1,0 +1,44 @@
+#include<iostream>
+#include<cstdlib>
+#include<wiringPi.h>
+#include<wiringSerial.h>
+using namespace std;
+int fd; //Linux 的思想是：将一切IO设备，都看做 文件，fd就是代表串口抽象出来的文件
+
+void setup();
+int main()
+{
+    while(true)
+    {
+//        digitalWrite(LEDPin,HIGH);
+
+        if(serialDataAvail(fd) >= 1)    //如果串口缓存中有数据
+        {
+            int data = serialGetchar(fd);
+            printf("%c  \n",data);
+            serialPutchar (fd,data);
+        }
+    }
+    return 0;
+}
+
+
+void setup()
+{
+    if(-1==wiringPiSetup())
+    {
+        cerr<<"set up error"<<endl;
+        exit(-1);
+    }
+    if((fd = serialOpen("/dev/ttyAMA0",9600))==-1)    //初始化串口，波特率9600
+    {
+        cerr<<"serial open error"<<endl;
+        exit(-1);
+        printf("serial open error\n");
+    }
+    serialPrintf(fd,"Hello World!!!\n");
+
+//    pinMode(LEDPin,OUTPUT);
+//    digitalWrite(LEDPin,HIGH);
+
+}
