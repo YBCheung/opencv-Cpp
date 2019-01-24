@@ -1,8 +1,43 @@
-#include<opencv2/opencv.hpp>
+#include <iostream>
 
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+
+#include <ctype.h>
+
+#include <unistd.h>
+
+#define WIDE    160.0
+#define HEIGHT  120.0
+#define     min_threa   500
+//中断引脚
+#define REST   23
+//亮灯引脚
+#define Led_pin     28
+#define shout_down   22//关机引脚
+
+using namespace std;
 using namespace cv;
 
-Mat frame;
+Mat g_srcImage;
+Mat g_cannyImage;
+int g_nThresh = 80;
+int g_nThresh_max = 255;
+RNG g_rng(12345);
+vector <vector <Point> > contours;
+vector <Vec4i> g_vHierarchy;
+
+
+int  set_gpio(void);
+void REST_CallBack(void);
+void Shout_down_Callback(void);
+
+int fd;
 
 void displayFPS()
 {
@@ -21,35 +56,142 @@ void displayFPS()
     // 将帧率信息写在输出帧上
     std::string fpsString("FPS:");
     fpsString += string;                    // 在"FPS:"后加入帧率数值字符串
-    cv::putText(frame, // 图像矩阵
+    cv::putText(g_srcImage, // 图像矩阵
                 fpsString,                  // string型文字内容
                 cv::Point(5, 20),           // 文字坐标，以左下角为原点
                 cv::FONT_HERSHEY_SIMPLEX,   // 字体类型
                 1, // 字体大小
-                cv::Scalar(0,0 , 255));       // 字体颜色
+                cv::Scalar(0,0,255));       // 字体颜色
 }
 
 int main()
 {
-    VideoCapture cap;
-    cap.open(0);
-    if(!cap.isOpened())
-        return 0;
-    cv::namedWindow("Camera FPS");
-    while(1)
-    {
-        cap>>frame;//等价于cap.read(frame);
-        cvtColor(frame, frame, CV_BGR2GRAY);
-        blur(frame, frame, Size(3,3));
-        //        Canny(frame, frame, 30, 60, 3);
-        if(frame.empty())
-        break;
-        displayFPS();
-        imshow("Camera FPS", frame);
-        if(waitKey(10)>0)//按下任意键退出摄像头　　因电脑环境而异，有的电脑可能会出现一闪而过的情况
-            break;
-    }
-    cap.release();
-    destroyAllWindows();//关闭所有窗口
-    return 0;
+        double t,fps;
+        VideoCapture capture(1);
+        u_int8_t old_x=80,old_y=60;
+        int minDis=0;
+        int dis=0;
+        u_int8_t label=0;
+        int candi[3][4]={0};  //3个候选方块，x,y,size,label
+        Point center(80,60);
+//        vector<cv::Point> targetContour;
+        bool flag_have=0;
+//        u_int8_t buf[8]={0xff,0x03,0x00,0x00,0x00,0x00,0x00,0xfe};  //123_123.
+        while(1)
+        {
+            /**********************1.变量归位*************************/
+            label=0;
+            minDis=0;
+            memset(candi,0,sizeof(u_int8_t)*12);
+            flag_have=false;
+            capture>>g_srcImage;
+            resize(g_srcImage,g_srcImage,Size(320,240));
+            cvtColor( g_srcImage, g_cannyImage, COLOR_BGR2GRAY );
+
+
+            /**********************2.图像处理*************************/
+            // 1.二值化  @@@@@@@@@
+            cv::threshold(g_cannyImage,g_cannyImage,150,255,2);
+//            THRESH_BINARY 二进制阈值化 -> 大于阈值为1 小于阈值为0
+//            THRESH_BINARY_INV 反二进制阈值化 -> 大于阈值为0 小于阈值为1
+//            THRESH_TRUNC 截断阈值化 -> 大于阈值为阈值，小于阈值不变
+//            THRESH_TOZERO 阈值化为0 -> 大于阈值的不变，小于阈值的全为0
+//            THRESH_TOZERO_INV 反阈值化为0 -> 大于阈值为0，小于阈值不变
+            // 2.滤波（均值）
+            blur( g_cannyImage, g_cannyImage, Size(3,3) );
+            // 3.边缘
+            Canny( g_cannyImage, g_cannyImage, g_nThresh, g_nThresh*2, 3 ); //@@@@@@@@@@
+//            通常第3、4比值为 1：2～3;
+//            低于3，不是边缘；高于4是边缘；中间，若与4相邻则为边缘。
+            // 4.膨胀
+
+            imshow("Canny",g_cannyImage);
+
+
+
+            /**********************3.目标查找*************************/
+
+            //0.初始目标
+
+
+// 1.查找轮廓，对应连通域
+            cv::findContours(g_cannyImage,contours,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_NONE);
+
+
+// 2.阈值内找最大三个色块。
+            u_int8_t blob_num = contours.size();
+            if(blob_num<1)
+            {
+                printf("NO_1:  %d %d\n",80,60);
+                continue;
+            }
+
+            for(size_t i = 0; i < blob_num; i++)
+            {
+              double area = (contourArea(contours[i]));
+                if (area > candi[0][2] )
+                {
+                    candi[0][2] = area;
+                    candi[0][3] = i;
+                    flag_have=true;
+                }
+                else if (area > candi[1][2] )
+                {
+                    candi[1][2] = area;
+                    candi[1][3] = i;
+                }
+                else if (area > candi[2][2] )
+                {
+                    candi[2][2] = area;
+                    candi[2][3] = i;
+                }
+                else
+                    flag_have=false;
+            }
+
+// 3.比对中心坐标
+            if(candi[0][3]<=0)
+            {
+                printf("NO_2:  %d %d\n",80,60);
+                continue;
+            }
+            Rect targetRect;
+            if(blob_num>3)
+                blob_num=3;
+
+            for(u_int8_t i=0;i<blob_num;i++)
+            {
+                cv::Rect Rect_1 = cv::boundingRect(contours[candi[i][3]]);
+                cv::rectangle(g_srcImage, Rect_1, cv::Scalar(255,0,0));
+                candi[i][0]=Rect_1.x+Rect_1.width/2;
+                candi[i][1]=Rect_1.y+Rect_1.height/2;
+                dis=((candi[i][0]-old_x)*(candi[i][0]-old_x) + (candi[i][1]-old_y)*(candi[i][1]-old_y))/100; //@@@@@
+                if(abs(dis)<minDis)                {
+                    minDis=dis;
+                    label=i;
+                    targetRect=Rect_1;
+                }
+//                printf("%d  %d , %d |",candi[i][0],candi[i][1],dis);
+            }
+
+//            printf("\n%d  %d  old \n",old_x,old_y);
+            printf("%d  %d\n",candi[label][0],candi[label][1]);
+            cv::rectangle(g_srcImage, targetRect, cv::Scalar(255,255,255));
+            center.x=candi[label][0];
+            center.y=candi[label][1];
+            old_x=center.x;
+            old_y=center.y;
+            cv::imshow("b", g_srcImage);
+
+            printf("%d %d\n",center.x,center.y);
+
+
+            waitKey(5);
+
+            /**********************4.计算帧率*************************/
+            t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+            fps = 1.0 / t;
+            t = (double)cv::getTickCount();
+           // printf("fps：%.2f\n",fps);
+      }
 }
