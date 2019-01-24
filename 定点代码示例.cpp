@@ -30,7 +30,7 @@ Mat g_grayImage;
 int g_nThresh = 80;
 int g_nThresh_max = 255;
 RNG g_rng(12345);
-Mat g_cannyMat_output;
+Mat g_cannyMat_output; 
 vector <vector <Point> > contours;
 vector <Vec4i> g_vHierarchy;
 
