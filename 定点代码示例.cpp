@@ -15,7 +15,7 @@
 #define WIDE    160.0
 #define HEIGHT  120.0
 #define     min_threa   500
-//中断引脚
+// 中断引脚
 #define REST   23
 //亮灯引脚
 #define Led_pin     28
@@ -91,6 +91,10 @@ int main()
                 }
             }
 
+            
+
+
+
             if(flag_have==true)
             {
                 // 将轮廓转为矩形框
@@ -100,7 +104,6 @@ int main()
                 cv::Mat result2,result1;
                 g_grayImage.copyTo(result2);
                 g_grayImage.copyTo(result1);
-
                 for (size_t i = 0; i < contours.size(); i++)
                 {
                     if((fabs)(contourArea(contours[i]))==maxArea)
