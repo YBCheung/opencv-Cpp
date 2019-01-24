@@ -15,7 +15,7 @@
 #define WIDE    160.0
 #define HEIGHT  120.0
 #define     min_threa   500
-// 中断引脚
+//中断引脚
 #define REST   23
 //亮灯引脚
 #define Led_pin     28
@@ -30,7 +30,7 @@ Mat g_grayImage;
 int g_nThresh = 80;
 int g_nThresh_max = 255;
 RNG g_rng(12345);
-Mat g_cannyMat_output; 
+Mat g_cannyMat_output;
 vector <vector <Point> > contours;
 vector <Vec4i> g_vHierarchy;
 
@@ -52,7 +52,7 @@ int main()
         Point center;
         // 寻找最大连通域
         vector<cv::Point> maxContour;
-        u_int8_t buf[8]={0xff,0x03,0x00,0x00,0x00,0x00,0x00,0xfe};
+        u_int8_t buf[8]={0xff,0x03,0x00,0x00,0x00,0x00,0x00,0xfe};  //123_123.
         // 寻找最大连通域
         while(1)
        {
@@ -65,9 +65,18 @@ int main()
             // 转成灰度并模糊化降噪
             cvtColor( g_srcImage, g_grayImage, COLOR_BGR2GRAY );
             cv::threshold(g_grayImage,g_grayImage,150,255,2);//二值化
+
+//            THRESH_BINARY 二进制阈值化 -> 大于阈值为1 小于阈值为0
+//            THRESH_BINARY_INV 反二进制阈值化 -> 大于阈值为0 小于阈值为1
+//            THRESH_TRUNC 截断阈值化 -> 大于阈值为阈值，小于阈值不变
+//            THRESH_TOZERO 阈值化为0 -> 大于阈值的不变，小于阈值的全为0
+//            THRESH_TOZERO_INV 反阈值化为0 -> 大于阈值为0，小于阈值不变
+
             blur( g_grayImage, g_grayImage, Size(3,3) );
             Canny( g_grayImage, g_cannyMat_output, g_nThresh, g_nThresh*2, 3 );
-            imshow("Cany",g_cannyMat_output);
+//            通常第3、4比值为 1：2～3;
+//            低于3，不是边缘；高于4是边缘；中间，若与4相邻则为边缘。
+            imshow("Canny",g_cannyMat_output);
 
             // 寻找轮廓
             // 查找轮廓，对应连通域
@@ -79,7 +88,8 @@ int main()
                 center.y=old_y;
             }
 
-           for(size_t i = 0; i < contours.size(); i++)
+//***            阈值内找最大色块！！
+            for(size_t i = 0; i < contours.size(); i++)
             {
               double area = (contourArea(contours[i]));
               //  printf("%.2f ",area);
@@ -91,29 +101,24 @@ int main()
                 }
             }
 
-            
-
-
 
             if(flag_have==true)
             {
                 // 将轮廓转为矩形框
                 cv::Rect maxRect = cv::boundingRect(maxContour);
-               //  printf("\nmax=%.2f,%.\n",maxArea);
                 // 显示连通域
                 cv::Mat result2,result1;
                 g_grayImage.copyTo(result2);
                 g_grayImage.copyTo(result1);
+
                 for (size_t i = 0; i < contours.size(); i++)
                 {
                     if((fabs)(contourArea(contours[i]))==maxArea)
-                       // printf("asdasfasf\n");
                     {
-
                              cv::Rect r = cv::boundingRect(contours[i]);
                              cv::rectangle(result1, r, cv::Scalar(255));
 
-                              cv::imshow("a", result1) ;
+                              cv::imshow("a", result1);
 
                               center.x=r.x+r.width/2;
                               center.y=HEIGHT-(r.y+r.height/2);
@@ -132,4 +137,3 @@ int main()
            // printf("fps：%.2f\n",fps);
       }
 }
-
